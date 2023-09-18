@@ -2,19 +2,23 @@ package priority_queue
 
 import (
 	"container/heap"
+	"sync"
+	"time"
 )
 
 type Item[T any] struct {
 	Value    T
-	Priority int
+	Priority int64
 	Index    int
+
+	insertTime int64
 
 	properties map[string]any
 }
 
 // NewItem 创建新的Item
-func NewItem[T any](value T, priority int, index int, opts ...Option[T]) *Item[T] {
-	item := &Item[T]{Value: value, Priority: priority, Index: index}
+func NewItem[T any](value T, priority int64, index int, opts ...Option[T]) *Item[T] {
+	item := &Item[T]{Value: value, Priority: priority, Index: index, insertTime: time.Now().Unix()}
 	for _, opt := range opts {
 		opt(item)
 	}
@@ -26,35 +30,30 @@ func (i *Item[T]) Properties(key string) any {
 	return val
 }
 
-type PriorityQueue[T any] []*Item[T]
+type priorityQueue[T any] []*Item[T]
 
-func New[T any]() PriorityQueue[T] {
-	pq := PriorityQueue[T]{}
-	heap.Init(&pq)
-	return pq
-}
-
-func (pq *PriorityQueue[T]) Len() int {
+func (pq *priorityQueue[T]) Len() int {
 	return len(*pq)
 }
 
-func (pq *PriorityQueue[T]) Less(i, j int) bool {
-	return (*pq)[i].Priority > (*pq)[j].Priority
+// Less Priority小优先, 早到优先
+func (pq *priorityQueue[T]) Less(i, j int) bool {
+	return (*pq)[i].Priority+(*pq)[i].insertTime < (*pq)[j].Priority+(*pq)[j].insertTime
 }
 
-func (pq *PriorityQueue[T]) Swap(i, j int) {
+func (pq *priorityQueue[T]) Swap(i, j int) {
 	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
 	(*pq)[i].Index, (*pq)[j].Index = i, j
 }
 
-func (pq *PriorityQueue[T]) Push(x any) {
+func (pq *priorityQueue[T]) Push(x any) {
 	n := len(*pq)
 	item := x.(*Item[T])
 	item.Index = n
 	*pq = append(*pq, item)
 }
 
-func (pq *PriorityQueue[T]) Pop() any {
+func (pq *priorityQueue[T]) Pop() any {
 	old := *pq
 	n := len(old)
 	item := old[n-1]
@@ -63,19 +62,49 @@ func (pq *PriorityQueue[T]) Pop() any {
 	return item
 }
 
-func (pq *PriorityQueue[T]) Update(item Item[T], value T, priority int) {
+func (pq *priorityQueue[T]) update(item *Item[T], value T, priority int64) {
 	item.Value = value
 	item.Priority = priority
 	heap.Fix(pq, item.Index)
 }
 
-func (pq *PriorityQueue[T]) HeapPush(x *Item[T]) {
-	heap.Push(pq, x)
+type PriorityQueue[T any] struct {
+	mu sync.Mutex
+	pq priorityQueue[T]
 }
 
-func (pq *PriorityQueue[T]) HeapPop() *Item[T] {
-	item := heap.Pop(pq)
-	return item.(*Item[T])
+func New[T any]() *PriorityQueue[T] {
+	pq := priorityQueue[T]{}
+	heap.Init(&pq)
+	return &PriorityQueue[T]{
+		pq: pq,
+	}
+}
+
+func (pq *PriorityQueue[T]) Push(item *Item[T]) {
+	pq.mu.Lock()
+	defer pq.mu.Unlock()
+
+	heap.Push(&pq.pq, item)
+}
+
+// Pop 目前不支持并发调用
+func (pq *PriorityQueue[T]) Pop() *Item[T] {
+	pq.mu.Lock()
+	defer pq.mu.Unlock()
+
+	return heap.Pop(&pq.pq).(*Item[T])
+}
+
+func (pq *PriorityQueue[T]) Update(item *Item[T], value T, priority int64) {
+	pq.mu.Lock()
+	defer pq.mu.Unlock()
+
+	pq.pq.update(item, value, priority)
+}
+
+func (pq *PriorityQueue[T]) Len() int {
+	return pq.pq.Len()
 }
 
 type Option[T any] func(*Item[T])
