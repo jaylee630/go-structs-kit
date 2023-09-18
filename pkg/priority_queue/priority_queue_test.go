@@ -7,13 +7,13 @@ import (
 )
 
 func TestPQ(t *testing.T) {
-	items := map[string]int{
+	items := map[string]int64{
 		"banana": 3,
 		"apple":  2,
 		"pear":   4,
 	}
 
-	pq := make(PriorityQueue[string], len(items))
+	pq := make(priorityQueue[string], len(items))
 	i := 0
 	for value, priority := range items {
 		pq[i] = NewItem(value, priority, i, SetProperty[string]("internal", 123))
@@ -22,9 +22,9 @@ func TestPQ(t *testing.T) {
 	}
 	heap.Init(&pq)
 
-	item := Item[string]{Value: "orange", Priority: 1}
+	item := &Item[string]{Value: "orange", Priority: 1}
 	heap.Push(&pq, item)
-	pq.Update(item, "orange", 5)
+	pq.update(item, "orange", 5)
 
 	for len(pq) > 0 {
 		item := heap.Pop(&pq).(Item[string])
