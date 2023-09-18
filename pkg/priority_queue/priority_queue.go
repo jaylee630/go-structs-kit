@@ -21,7 +21,18 @@ func NewItem[T any](value T, priority int, index int, opts ...Option[T]) *Item[T
 	return item
 }
 
+func (i *Item[T]) Properties(key string) any {
+	val, _ := i.properties[key]
+	return val
+}
+
 type PriorityQueue[T any] []*Item[T]
+
+func New[T any]() PriorityQueue[T] {
+	pq := PriorityQueue[T]{}
+	heap.Init(&pq)
+	return pq
+}
 
 func (pq *PriorityQueue[T]) Len() int {
 	return len(*pq)
@@ -56,6 +67,15 @@ func (pq *PriorityQueue[T]) Update(item Item[T], value T, priority int) {
 	item.Value = value
 	item.Priority = priority
 	heap.Fix(pq, item.Index)
+}
+
+func (pq *PriorityQueue[T]) HeapPush(x *Item[T]) {
+	heap.Push(pq, x)
+}
+
+func (pq *PriorityQueue[T]) HeapPop() *Item[T] {
+	item := heap.Pop(pq)
+	return item.(*Item[T])
 }
 
 type Option[T any] func(*Item[T])
